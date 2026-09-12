@@ -3,20 +3,20 @@ import path from "node:path";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@ffmpeg/ffmpeg", "@ffmpeg/util", "mediainfo.js"],
-  transpilePackages: ["xlsx"],
-  turbopack: {
-    rules: {
-      "*.wasm": {
-        type: "asset",
-      },
-    },
-    resolveAlias: {
-      "MediaInfoModule.wasm": path.join(
+
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+
+      "MediaInfoModule.wasm": path.resolve(
         process.cwd(),
-        "public/wasm/MediaInfoModule.wasm",
+        "public",
+        "wasm",
+        "MediaInfoModule.wasm",
       ),
-      xlsx: path.join(process.cwd(), "node_modules/xlsx/xlsx.mjs"),
-    },
+    };
+
+    return config;
   },
 };
 

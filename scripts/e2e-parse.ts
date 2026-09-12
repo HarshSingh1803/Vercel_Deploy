@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { parseCsv, isSocialVideoPage, isDirectVideoUrl } from "../src/lib/workspace/parse.ts";
+import { parseCsv, isSocialVideoPage, isDirectVideoUrl } from "../src/lib/workspace/parse";
 
 const rows = parseCsv(`title,url,caption
 Launch clip,https://example.com/a.mp4,Hello world

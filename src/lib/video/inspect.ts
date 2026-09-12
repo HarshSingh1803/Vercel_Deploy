@@ -1,10 +1,24 @@
-import type { AudioTrack, Extra, GeneralTrack, Track, VideoTrack } from "mediainfo.js";
-import { fileExtension, formatBytes, formatDuration, stemName } from "@/lib/utils";
+import type {
+  AudioTrack,
+  Extra,
+  GeneralTrack,
+  Track,
+  VideoTrack,
+} from "mediainfo.js";
+
+import {
+  fileExtension,
+  formatBytes,
+  formatDuration,
+  stemName,
+} from "@/lib/utils";
+
 import {
   MAX_FILE_BYTES,
   SUPPORTED_EXTENSIONS,
   SUPPORTED_MIME_TYPES,
 } from "@/lib/video/constants";
+
 import type {
   MetadataCategoryId,
   MetadataField,
@@ -25,15 +39,27 @@ const SKIP_KEYS = new Set([
   "Encoded_Library_Settings",
 ]);
 
-function asText(value: unknown) {
-  if (value === null || value === undefined || value === "") return null;
-  if (typeof value === "string") return value.trim() || null;
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  if (typeof value === "boolean") return value ? "Yes" : "No";
+function asText(value: unknown): string | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    return value.trim() || null;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+
   return null;
 }
 
-function humanize(key: string) {
+function humanize(key: string): string {
   return key
     .replace(/_/g, " ")
     .replace(/([a-z])([A-Z])/g, "$1 $2")
@@ -42,11 +68,13 @@ function humanize(key: string) {
 
 function categorize(key: string): MetadataCategoryId | "technical" {
   const k = key.toLowerCase();
+
   if (
     /gps|location|latitude|longitude|iso6709|recorded_location|\bxyz\b/.test(k)
   ) {
     return "location";
   }
+
   if (
     /(encoded_date|tagged_date|recorded_date|creation|created|modified|timestamp)/.test(
       k,
@@ -56,6 +84,7 @@ function categorize(key: string): MetadataCategoryId | "technical" {
   ) {
     return "timestamps";
   }
+
   if (
     /make|model|encoder|encoded_application|encoded_library|writing_library|software|device|camera/.test(
       k,
@@ -63,6 +92,7 @@ function categorize(key: string): MetadataCategoryId | "technical" {
   ) {
     return "device";
   }
+
   if (
     /title|comment|description|copyright|performer|artist|album|genre|composer|synopsis|actor|director|show|season|lyrics/.test(
       k,
@@ -70,6 +100,7 @@ function categorize(key: string): MetadataCategoryId | "technical" {
   ) {
     return "descriptive";
   }
+
   return "technical";
 }
 
@@ -77,12 +108,30 @@ function groupFor(
   trackType: string,
   category: MetadataCategoryId | "technical",
 ): MetadataGroup {
-  if (category === "location") return "Location";
-  if (category === "timestamps") return "Dates";
-  if (category === "device") return "Device";
-  if (category === "descriptive") return "Tags";
-  if (trackType === "Video") return "Video";
-  if (trackType === "Audio") return "Audio";
+  if (category === "location") {
+    return "Location";
+  }
+
+  if (category === "timestamps") {
+    return "Dates";
+  }
+
+  if (category === "device") {
+    return "Device";
+  }
+
+  if (category === "descriptive") {
+    return "Tags";
+  }
+
+  if (trackType === "Video") {
+    return "Video";
+  }
+
+  if (trackType === "Audio") {
+    return "Audio";
+  }
+
   return "File";
 }
 
@@ -95,8 +144,15 @@ function pushField(
   group: MetadataGroup,
 ) {
   const text = asText(value);
-  if (!text) return;
-  if (text.length > 400) return;
+
+  if (!text) {
+    return;
+  }
+
+  if (text.length > 400) {
+    return;
+  }
+
   fields.push({
     key,
     label,
@@ -107,19 +163,29 @@ function pushField(
   });
 }
 
-function extraValue(extra: Extra | undefined, names: string[]) {
-  if (!extra) return null;
+function extraValue(extra: Extra | undefined, names: string[]): string | null {
+  if (!extra) {
+    return null;
+  }
+
+  const record = extra as unknown as Record<string, unknown>;
+
   for (const name of names) {
-    const match = Object.entries(extra).find(
+    const match = Object.entries(record).find(
       ([key]) => key.toLowerCase() === name.toLowerCase(),
     );
-    if (match) return asText(match[1]);
+
+    if (match) {
+      return asText(match[1]);
+    }
   }
+
   return null;
 }
 
-function looksLikeLocation(key: string, value: string) {
+function looksLikeLocation(key: string, value: string): boolean {
   const haystack = `${key} ${value}`.toLowerCase();
+
   return (
     haystack.includes("gps") ||
     haystack.includes("location") ||
@@ -137,15 +203,28 @@ function harvestTrack(
   index: number,
 ) {
   const record = track as unknown as Record<string, unknown>;
+
   for (const [key, value] of Object.entries(record)) {
-    if (SKIP_KEYS.has(key) || key.startsWith("@")) continue;
-    if (/_String\d+$/.test(key)) continue;
-    if (key.endsWith("_String")) continue;
+    if (SKIP_KEYS.has(key) || key.startsWith("@")) {
+      continue;
+    }
+
+    if (/_String\d+$/.test(key)) {
+      continue;
+    }
+
+    if (key.endsWith("_String")) {
+      continue;
+    }
 
     const display = asText(record[`${key}_String`]) ?? asText(value);
-    if (!display) continue;
+
+    if (!display) {
+      continue;
+    }
 
     const category = categorize(key);
+
     pushField(
       fields,
       `${trackType}-${index}-${key}`,
@@ -157,13 +236,27 @@ function harvestTrack(
   }
 
   const extra = record.extra as Extra | undefined;
-  if (!extra) return;
-  for (const [key, value] of Object.entries(extra)) {
+
+  if (!extra) {
+    return;
+  }
+
+  const extraRecord = extra as unknown as Record<string, unknown>;
+
+  for (const [key, value] of Object.entries(extraRecord)) {
     const text = asText(value);
-    if (!text) continue;
-    let category: MetadataCategoryId | "technical" = "descriptive";
-    if (looksLikeLocation(key, text)) category = "location";
-    else category = categorize(key);
+
+    if (!text) {
+      continue;
+    }
+
+    const category: MetadataCategoryId | "technical" = looksLikeLocation(
+      key,
+      text,
+    )
+      ? "location"
+      : categorize(key);
+
     pushField(
       fields,
       `${trackType}-${index}-extra-${key}`,
@@ -175,54 +268,69 @@ function harvestTrack(
   }
 }
 
-export function validateVideoFile(file: File) {
+export function validateVideoFile(file: File): string | null {
   const ext = fileExtension(file.name);
+
   const mimeOk =
     !file.type ||
     file.type.startsWith("video/") ||
     SUPPORTED_MIME_TYPES.includes(file.type);
+
   const extOk = SUPPORTED_EXTENSIONS.includes(
     ext as (typeof SUPPORTED_EXTENSIONS)[number],
   );
 
   if (!extOk || !mimeOk) {
-    return `Use a supported video format: ${SUPPORTED_EXTENSIONS.map((item) => item.toUpperCase()).join(", ")}.`;
+    return `Use a supported video format: ${SUPPORTED_EXTENSIONS.map((item) =>
+      item.toUpperCase(),
+    ).join(", ")}.`;
   }
+
   if (file.size <= 0) {
     return "That file is empty.";
   }
+
   if (file.size > MAX_FILE_BYTES) {
     return "Files larger than 350 MB cannot be processed in the browser.";
   }
+
   return null;
 }
 
 export async function readElementMetadata(file: File) {
   const objectUrl = URL.createObjectURL(file);
+
   try {
     const video = document.createElement("video");
+
     video.preload = "metadata";
     video.muted = true;
     video.src = objectUrl;
+
     await new Promise<void>((resolve, reject) => {
       const timer = window.setTimeout(() => {
         resolve();
       }, 4000);
+
       video.onloadedmetadata = () => {
         window.clearTimeout(timer);
         resolve();
       };
+
       video.onerror = () => {
         window.clearTimeout(timer);
         reject(new Error("This file could not be read as a video."));
       };
     });
+
     return {
       durationSeconds:
         Number.isFinite(video.duration) && video.duration > 0
           ? video.duration
           : null,
+
       width: video.videoWidth || null,
+
       height: video.videoHeight || null,
     };
   } finally {
@@ -232,25 +340,39 @@ export async function readElementMetadata(file: File) {
 
 export async function inspectVideoFile(file: File): Promise<VideoInspection> {
   const validationError = validateVideoFile(file);
+
   if (validationError) {
     throw new Error(validationError);
   }
 
-  const [{ default: mediaInfoFactory }, elementMeta] = await Promise.all([
-    import("mediainfo.js"),
-    readElementMetadata(file).catch(() => ({
-      durationSeconds: null,
-      width: null,
-      height: null,
-    })),
-  ]);
+  const elementMeta = await readElementMetadata(file).catch(() => ({
+    durationSeconds: null,
+    width: null,
+    height: null,
+  }));
+
+  if (typeof window === "undefined") {
+    throw new Error("Video inspection is only available in the browser.");
+  }
+
+  /*
+   * IMPORTANT:
+   * MediaInfo is loaded only in the browser.
+   * This prevents Next.js server/build side from trying
+   * to resolve the WASM file.
+   */
+  const { default: mediaInfoFactory } = await import("mediainfo.js");
 
   const mediaInfo = await mediaInfoFactory({
     format: "object",
     coverData: false,
     full: true,
-    locateFile: (path, prefix) => {
-      if (path.endsWith(".wasm")) return "/wasm/MediaInfoModule.wasm";
+
+    locateFile: (path: string, prefix: string) => {
+      if (path.endsWith(".wasm")) {
+        return "/wasm/MediaInfoModule.wasm";
+      }
+
       return prefix + path;
     },
   });
@@ -258,35 +380,62 @@ export async function inspectVideoFile(file: File): Promise<VideoInspection> {
   try {
     const result = await mediaInfo.analyzeData(
       () => file.size,
-      async (chunkSize, offset) =>
-        new Uint8Array(await file.slice(offset, offset + chunkSize).arrayBuffer()),
+
+      async (chunkSize: number, offset: number) =>
+        new Uint8Array(
+          await file.slice(offset, offset + chunkSize).arrayBuffer(),
+        ),
     );
 
-    const tracks = result.media?.track ?? [];
+    /*
+     * IMPORTANT:
+     * Double cast through unknown fixes:
+     *
+     * Conversion of type 'Track[]' to type
+     * 'Record<string, unknown>[]'
+     *
+     * error.
+     */
+    const tracks = (result.media?.track ?? []) as unknown as Track[];
+
     const general = tracks.find((track) => track["@type"] === "General") as
       | GeneralTrack
       | undefined;
+
     const video = tracks.find((track) => track["@type"] === "Video") as
       | VideoTrack
       | undefined;
+
     const audio = tracks.find((track) => track["@type"] === "Audio") as
       | AudioTrack
       | undefined;
 
     const fields: MetadataField[] = [];
+
+    const durationValue = general?.Duration;
+
     const durationSeconds =
-      (typeof general?.Duration === "number" ? general.Duration : null) ??
+      (typeof durationValue === "number" ? durationValue : null) ??
       elementMeta.durationSeconds;
-    const width = video?.Width ?? elementMeta.width;
-    const height = video?.Height ?? elementMeta.height;
+
+    const width =
+      (typeof video?.Width === "number" ? video.Width : null) ??
+      elementMeta.width;
+
+    const height =
+      (typeof video?.Height === "number" ? video.Height : null) ??
+      elementMeta.height;
+
     const fileType =
-      general?.Format ||
+      asText(general?.Format) ||
       file.type ||
       fileExtension(file.name).toUpperCase() ||
       "Video";
 
     pushField(fields, "fileName", "File name", file.name, "technical", "File");
+
     pushField(fields, "fileType", "File type", fileType, "technical", "File");
+
     pushField(
       fields,
       "mimeType",
@@ -295,6 +444,7 @@ export async function inspectVideoFile(file: File): Promise<VideoInspection> {
       "technical",
       "File",
     );
+
     pushField(
       fields,
       "fileSize",
@@ -303,6 +453,7 @@ export async function inspectVideoFile(file: File): Promise<VideoInspection> {
       "technical",
       "File",
     );
+
     pushField(
       fields,
       "fileSizeBytes",
@@ -311,6 +462,7 @@ export async function inspectVideoFile(file: File): Promise<VideoInspection> {
       "technical",
       "File",
     );
+
     pushField(
       fields,
       "duration",
@@ -321,6 +473,7 @@ export async function inspectVideoFile(file: File): Promise<VideoInspection> {
       "technical",
       "File",
     );
+
     pushField(
       fields,
       "resolution",
@@ -329,22 +482,30 @@ export async function inspectVideoFile(file: File): Promise<VideoInspection> {
       "technical",
       "Video",
     );
+
     pushField(
       fields,
       "browserModified",
       "Last modified on this device",
-      file.lastModified
-        ? new Date(file.lastModified).toISOString()
-        : null,
+      file.lastModified ? new Date(file.lastModified).toISOString() : null,
       "technical",
       "Dates",
     );
 
+    /*
+     * Process every MediaInfo track.
+     */
     tracks.forEach((track, index) => {
-      harvestTrack(fields, track, track["@type"], index);
+      const trackType = String(track["@type"] ?? "Unknown");
+
+      harvestTrack(fields, track, trackType, index);
     });
 
-    const extra = general?.extra;
+    /*
+     * GPS / Location metadata.
+     */
+    const extra = general?.extra as Extra | undefined;
+
     const gps =
       extraValue(extra, [
         "xyz",
@@ -354,31 +515,42 @@ export async function inspectVideoFile(file: File): Promise<VideoInspection> {
         "GPSCoordinates",
         "©xyz",
       ]) || asText(general?.Recorded_Location);
+
     pushField(fields, "gps", "GPS / location", gps, "location", "Location");
 
-    const unique = fields.filter((field, index, list) => {
-      if (
+    /*
+     * Remove duplicate metadata fields.
+     */
+    const unique = fields.filter(
+      (field, index, list) =>
         list.findIndex(
           (item) => item.label === field.label && item.value === field.value,
-        ) !== index
-      ) {
-        return false;
-      }
-      return true;
-    });
+        ) === index,
+    );
 
     return {
       fileName: file.name,
+
       fileType,
+
       fileSize: file.size,
+
       durationSeconds,
+
       width: width ?? null,
+
       height: height ?? null,
+
       frameRate:
-        video?.FrameRate_String ??
-        (video?.FrameRate ? `${video.FrameRate} fps` : null),
-      videoCodec: video?.Format ?? video?.CodecID ?? null,
-      audioCodec: audio?.Format ?? audio?.CodecID ?? null,
+        asText(video?.FrameRate_String) ??
+        (typeof video?.FrameRate === "number"
+          ? `${video.FrameRate} fps`
+          : null),
+
+      videoCodec: asText(video?.Format) ?? asText(video?.CodecID) ?? null,
+
+      audioCodec: asText(audio?.Format) ?? asText(audio?.CodecID) ?? null,
+
       fields: unique,
     };
   } finally {
@@ -387,5 +559,7 @@ export async function inspectVideoFile(file: File): Promise<VideoInspection> {
 }
 
 export function cleanedDownloadName(originalName: string) {
-  return `${stemName(originalName)}-cleaned.${fileExtension(originalName) || "mp4"}`;
+  return `${stemName(originalName)}-cleaned.${
+    fileExtension(originalName) || "mp4"
+  }`;
 }

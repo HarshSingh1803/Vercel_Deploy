@@ -5,8 +5,10 @@ function splitCsvLine(line: string) {
   const cells: string[] = [];
   let current = "";
   let quoted = false;
+
   for (let i = 0; i < line.length; i += 1) {
     const char = line[i];
+
     if (char === '"') {
       if (quoted && line[i + 1] === '"') {
         current += '"';
@@ -21,7 +23,9 @@ function splitCsvLine(line: string) {
       current += char;
     }
   }
+
   cells.push(current.trim());
+
   return cells;
 }
 
@@ -33,15 +37,21 @@ function rowFromCells(
   const map = new Map(
     headers.map((header, headerIndex) => [header, cells[headerIndex] || ""]),
   );
+
   const pick = (...keys: string[]) => {
     for (const key of keys) {
       const match = [...map.entries()].find(
         ([header]) => header.toLowerCase() === key,
       );
-      if (match?.[1]) return match[1];
+
+      if (match?.[1]) {
+        return match[1];
+      }
     }
+
     return cells.find((cell) => cell.startsWith("http")) || cells[0] || "";
   };
+
   return {
     id: `sub-${index}-${Date.now()}`,
     title: pick("title", "name", "clip", "filename") || `Row ${index + 1}`,
@@ -56,14 +66,22 @@ export function parseCsv(text: string): SubmissionRow[] {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  if (lines.length === 0) return [];
+
+  if (lines.length === 0) {
+    return [];
+  }
+
   const headers = splitCsvLine(lines[0]).map((item) => item.toLowerCase());
+
   const body = headers.some((header) =>
     ["title", "url", "link", "caption", "name"].includes(header),
   )
     ? lines.slice(1)
     : lines;
-  const resolvedHeaders = body === lines ? ["title", "url", "caption"] : headers;
+
+  const resolvedHeaders =
+    body === lines ? ["title", "url", "caption"] : headers;
+
   return body.map((line, index) =>
     rowFromCells(splitCsvLine(line), resolvedHeaders, index),
   );
@@ -71,11 +89,14 @@ export function parseCsv(text: string): SubmissionRow[] {
 
 export async function parseSpreadsheet(file: File): Promise<SubmissionRow[]> {
   const ext = fileExtension(file.name);
+
   if (ext === "csv" || ext === "txt") {
     return parseCsv(await file.text());
   }
+
   if (ext === "tsv") {
     const text = await file.text();
+
     const asCsv = text
       .split(/\r?\n/)
       .map((line) =>
@@ -85,21 +106,38 @@ export async function parseSpreadsheet(file: File): Promise<SubmissionRow[]> {
           .join(","),
       )
       .join("\n");
+
     return parseCsv(asCsv);
   }
 
   if (ext === "xlsx" || ext === "xls") {
-    const XLSX = await import("xlsx/xlsx.mjs");
+    // IMPORTANT:
+    // Import xlsx package directly.
+    // Do NOT use "xlsx/xlsx.mjs".
+    const XLSX = await import("xlsx");
+
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: "array" });
+
+    const workbook = XLSX.read(buffer, {
+      type: "array",
+    });
+
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+    if (!sheet) {
+      throw new Error("The spreadsheet does not contain any sheets.");
+    }
+
     const csv = XLSX.utils.sheet_to_csv(sheet);
+
     return parseCsv(csv);
   }
 
   if (ext === "pdf") {
     const buffer = await file.arrayBuffer();
+
     const raw = new TextDecoder("latin1").decode(buffer);
+
     const urls = [
       ...new Set(
         [...raw.matchAll(/https?:\/\/[^\s\\)]+/g)].map((match) =>
@@ -107,11 +145,13 @@ export async function parseSpreadsheet(file: File): Promise<SubmissionRow[]> {
         ),
       ),
     ].filter((url) => url.length < 300);
+
     if (urls.length === 0) {
       throw new Error(
         "No links were found in that PDF. Export a CSV/XLSX with url, title, and caption columns.",
       );
     }
+
     return urls.map((url, index) => ({
       id: `pdf-${index}-${Date.now()}`,
       title: `PDF link ${index + 1}`,
@@ -127,6 +167,7 @@ export async function parseSpreadsheet(file: File): Promise<SubmissionRow[]> {
 export function isSocialVideoPage(url: string) {
   try {
     const host = new URL(url).hostname.replace(/^www\./, "");
+
     return (
       host.includes("instagram.com") ||
       host.includes("youtube.com") ||
@@ -143,6 +184,7 @@ export function isSocialVideoPage(url: string) {
 export function isDirectVideoUrl(url: string) {
   try {
     const parsed = new URL(url);
+
     return /\.(mp4|mov|m4v|webm|mkv|avi)(\?|$)/i.test(parsed.pathname);
   } catch {
     return false;
